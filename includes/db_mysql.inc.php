@@ -15,7 +15,6 @@
 			return $mysqli;
 		}
         
-        //$mysqli = new mysqli('localhost', 'web65', 'fC9esdwM38', 'usr_web65_3');
          $mysqli = new mysqli('localhost', 'root', '', 'budget_tracker');
 
 	   if(mysqli_connect_errno()) {
