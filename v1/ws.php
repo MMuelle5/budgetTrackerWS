@@ -15,15 +15,15 @@ session_start();
 
 
 $app->get('/isLoggedIn', function() {
-	if (!(isset($_SESSION['angemeldet']) && $_SESSION['angemeldet'] != '')) {
+	$json = "";
+	if (!(isset($_SESSION['access_token']) && $_SESSION['access_token'] != '')) {
 		$json =json_encode('{"login":false}');
-		echo "{$_GET['callback']}($json)";
 	}
     else {
 		$json =json_encode('{"login":true}');
 		// $json =json_encode('{"login":true, "session": '+$_SESSION['angemeldet']+'}');
-		echo "{$_GET['callback']}($json)";
     }
+	echo isset($_GET['callback'])? "{$_GET['callback']}($json)" : $json;
 });
 
 $app->get('/accounts/:accountId/positions', function ($accountId) {
@@ -37,21 +37,26 @@ $app->get('/accounts/:accountId/positions', function ($accountId) {
 	
 		$acc = $accountId;
 			
-		if ($stmt = $db->prepare("SELECT move_id, move_title, deposit, liftOff, move_comment  FROM budget_tracker.acc_movements where account_id = ? order by creation_date")) {
+		if ($stmt = $db->prepare("SELECT move_id, move_title, deposit, liftOff, move_comment  FROM acc_movements where account_id = ? order by creation_date")) {
 			$stmt->bind_param("s", $acc);  
 			$stmt->execute();
 			
-			$res = $stmt->get_result();
+			$retId = null;
+			$retTitle = null;
+			$retDepos = null;
+			$retLift = null;
+			$retComm = null;
+			$stmt->bind_result($retId, $retTitle, $retDepos, $retLift, $retComm);
 	
-	        while ($row = $res->fetch_array(MYSQL_ASSOC)) {
+	        while ($stmt->fetch()) {
 					// if(mysql_num_rows($row) > 0) {
 						// while ($row = mysql_fetch_array($row, MYSQL_NUM)) {
 				    $result = new Position();
-					$result->setMoveId($row['move_id']);
-					$result->setTitle($row['move_title']);
-					$result->setDeposit($row['deposit']);
-					$result->setLiftOff($row['liftOff']);
-					$result->setComment($row['move_comment']);
+					$result->setMoveId($retId);
+					$result->setTitle($retTitle);
+					$result->setDeposit($retDepos);
+					$result->setLiftOff($retLift);
+					$result->setComment($retComm);
 					// $return.push($result);
 					array_push($return,$result);
 			}
@@ -100,9 +105,10 @@ $app->get('/accounts/create', function() use ($app) {
 	$accountId = sha1(microtime(true));
 	$isMainOwner = 1;
 	
-	$user = $_SESSION['angemeldet'];
+	$user = $_SESSION['id'];
 	
 	$db = connect();
+	// $params = array(':accountId' => $user, ':accountName' => $accountName);
 	$stmt = $db->prepare("INSERT INTO accounts (account_id, account_name) values(?,?)");
 	$stmt->bind_param('ss', $accountId, $accountName);
 	$stmt->execute();
@@ -116,30 +122,41 @@ $app->get('/accounts/create', function() use ($app) {
 });
  
 $app->get('/accounts', function() use ($app) {
-			$user = $_SESSION['angemeldet'];
+				
+	$user = $_SESSION['id'];
 	
 	$db = connect();
-	$stmt = $db->prepare("SELECT a.account_id, a.account_name 
+	$return = array();
+	
+	if($stmt = $db->prepare("SELECT a.account_id, a.account_name 
 							FROM accounts a
 						  INNER JOIN user_accounts u
 						          ON u.account_id = a.account_id
-						         AND u.user_id = ?");
-	$stmt->bind_param('s', $user);
-	$stmt->execute();
-	$res = $stmt->get_result();
-
-	$return = array();
-	
-    while ($row = $res->fetch_array(MYSQL_ASSOC)) {
-    	$account = new Account();
-		$account->accountId = $row["account_id"];
-		$account->accountName = $row["account_name"];
+						         AND u.user_id = ?
+						 ORDER BY a.creation_date DESC")) {
+						 	
+		$stmt->bind_param('s', $user);
+		$stmt->execute();
 		
-		array_push($return,$account);
+		$retId = null;
+		$retName = null;
+		$stmt->bind_result($retId, $retName);
+	
+	    while ($stmt->fetch()) {
+	    	$account = new Account();
+			$account->accountId = $retId;
+			$account->accountName = $retName;
+			
+			array_push($return,$account);
+		}
 	}
-	
 	$db->close();
-	
+	// $account = new Account();
+	// $account->accountId = $user;
+// 	
+			// array_push($return,$account);
+			// $account->accountName = 'dummy';
+			
 	$json = json_encode($return);
 	echo isset($_GET['callback'])? "{$_GET['callback']}($json)" : $json;
 });
