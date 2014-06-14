@@ -89,9 +89,6 @@ $app->get('/accounts/:accountId/positions/create', function($accountId) use ($ap
 	$db->close();
 		
 });
-$app->post('/accounts/positions', function ($data) {
-   // create person
-});
  
 $app->put('/accounts/:accountId/positions/:id', function ($accountId, $id) {
    // update data
@@ -151,15 +148,49 @@ $app->get('/accounts', function() use ($app) {
 		}
 	}
 	$db->close();
-	// $account = new Account();
-	// $account->accountId = $user;
-// 	
-			// array_push($return,$account);
-			// $account->accountName = 'dummy';
-			
+		
 	$json = json_encode($return);
 	echo isset($_GET['callback'])? "{$_GET['callback']}($json)" : $json;
 });
+
+
+$app->get('/accounts/:id', function($accountId) use ($app) {
+	
+	$user = $_SESSION['id'];
+	
+	$db = connect();
+	$return = null;
+		
+	if($stmt = $db->prepare("SELECT a.account_id, a.account_name 
+							FROM accounts a
+						  INNER JOIN user_accounts u
+						          ON u.account_id = a.account_id
+						         AND u.user_id = ?
+						         AND u.account_id = ?
+						 ORDER BY a.creation_date DESC")) {
+						 	
+		$stmt->bind_param('ss', $user, $accountId);
+		$stmt->execute();
+		
+		$retId = null;
+		$retName = null;
+		$stmt->bind_result($retId, $retName);
+	
+	    while ($stmt->fetch()) {
+	    	$account = new Account();
+			$account->accountId = $retId;
+			$account->accountName = $retName;
+			
+			$return = $account;
+		}
+	}
+	$db->close();
+		
+	$json = json_encode($return);
+	echo isset($_GET['callback'])? "{$_GET['callback']}($json)" : $json;
+		
+});
+
 $app->run();
 
 ?>
